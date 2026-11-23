@@ -1,0 +1,57 @@
+# Non-secret application config. Secrets live in .env (see .env.example).
+# Model names are placeholders: check each provider's current model list / free-tier terms.
+
+llm:
+  chat:
+    - { provider: gemini, model: "gemini-flash-latest" }
+    - { provider: groq, model: "llama-3.3-70b-versatile" }
+  internal:
+    - { provider: gemini, model: "gemini-flash-lite-latest" }
+  vision:
+    - { provider: gemini, model: "gemini-flash-latest" }
+  embedding: { provider: gemini, model: "gemini-embedding-001", dimensions: 768 }
+  max_output_tokens: 400
+  pricing: {} # empty = free (cost 0)
+
+providers:
+  gemini: { base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", api_key_env: GEMINI_API_KEY }
+  groq: { base_url: "https://api.groq.com/openai/v1", api_key_env: GROQ_API_KEY }
+  openrouter: { base_url: "https://openrouter.ai/api/v1", api_key_env: OPENROUTER_API_KEY }
+  ollama: { base_url: "http://localhost:11434/v1", api_key_env: null }
+
+retrieval:
+  top_k: 4
+  candidates: 20
+  rrf_k: 60
+
+thresholds: # CNF-02 — tune with scripts/eval.py
+  direct_return_cosine: 0.90
+  retrieval_min_cosine: 0.60
+  llm_confidence: 0.70
+  semantic_cache: 0.95
+
+cache:
+  ttl_hours: 168
+
+quota:
+  daily_requests: 200
+  daily_tokens: 100000
+  timezone: Asia/Bangkok
+
+upload:
+  max_file_mb: 20
+  multipart_max_mb: 4
+
+conversion:
+  ocr_enabled: true
+  min_ocr_chars: 20
+  job_timeout_minutes: 5
+  max_attempts: 3
+
+conversation:
+  history_messages: 6
+
+retention_days: 90
+
+cors:
+  allow_origins: ["*"]
