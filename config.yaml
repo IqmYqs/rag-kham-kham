@@ -4,6 +4,7 @@
 llm:
   chat:
     - { provider: gemini, model: "gemini-flash-latest" }
+    - { provider: gemini, model: "gemini-flash-lite-latest" } # same key; used when Flash is overloaded (503)
     - { provider: groq, model: "llama-3.3-70b-versatile" }
   internal:
     - { provider: gemini, model: "gemini-flash-lite-latest" }
@@ -11,6 +12,7 @@ llm:
     - { provider: gemini, model: "gemini-flash-latest" }
   embedding: { provider: gemini, model: "gemini-embedding-001", dimensions: 768 }
   max_output_tokens: 400
+  timeout_seconds: 20 # per chat request, then fall back
   pricing: {} # empty = free (cost 0)
 
 providers:

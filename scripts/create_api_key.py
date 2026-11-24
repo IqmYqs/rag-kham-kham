@@ -8,8 +8,8 @@ The raw key is printed once and never stored; keep it somewhere safe.
 """
 
 import argparse
-import asyncio
 
+from app.core.aio import run
 from app.core.security import generate_api_key, hash_api_key
 from app.db.models import ApiKey
 from app.db.session import get_sessionmaker
@@ -33,4 +33,4 @@ if __name__ == "__main__":
     parser.add_argument("--owner", required=True)
     parser.add_argument("--role", choices=["admin", "user"], default="user")
     args = parser.parse_args()
-    asyncio.run(main(args.owner, args.role))
+    run(main(args.owner, args.role))

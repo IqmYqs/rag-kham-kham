@@ -7,7 +7,7 @@ RAG API สำหรับค้นหาและแต่งมุกขำๆ
 
 ## สถานะ
 
-เฟส 1 ขั้นที่ 1–3 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration แรก, envelope มาตรฐาน, API Key auth, `/health`
+เฟส 1 ขั้นที่ 1–4 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration แรก, envelope มาตรฐาน, API Key auth, `/health`, LLM client (fallback ข้าม provider) + embedding
 
 | Endpoint | Auth | หมายเหตุ |
 |---|---|---|
@@ -30,6 +30,8 @@ cp .env.example .env              # ใส่ค่า ADMIN_BOOTSTRAP_KEY อ�
 uvicorn app.main:app --reload     # เปิด http://localhost:8000/docs
 ```
 
+> Windows: psycopg แบบ async ใช้ event loop ปกติของ Windows ไม่ได้ ถ้ารันโดยไม่มี `--reload` ให้เพิ่ม `--loop app.core.aio:uvicorn_loop_factory` (สคริปต์ใน `scripts/` จัดการให้แล้ว)
+
 ยังไม่ต้องมี Supabase ก็รันได้ `/health` จะแสดง `not_configured` และใช้ `ADMIN_BOOTSTRAP_KEY` เรียก endpoint ที่ต้องใช้ key ได้
 
 ### รันด้วย Docker (เหมือน production)
@@ -45,6 +47,7 @@ docker compose up --build         # http://localhost:8000/docs
    - `DATABASE_URL` = Transaction pooler (port **6543**) ใช้ตอนรันแอป
    - `DATABASE_URL_DIRECT` = Session pooler (port **5432**) ใช้ตอนรัน migration
    - เปลี่ยน prefix เป็น `postgresql+psycopg://`
+   - ถ้ารหัสผ่านมีอักขระพิเศษ ต้อง encode ก่อน เช่น `@` → `%40`, `#` → `%23`, `/` → `%2F`
 3. สร้างตาราง: `alembic upgrade head`
 4. สร้าง admin key ถาวร: `python -m scripts.create_api_key --owner me --role admin`
 5. ใส่ `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (ใช้ในขั้นอัปโหลดไฟล์)
@@ -52,7 +55,8 @@ docker compose up --build         # http://localhost:8000/docs
 ## พัฒนา
 
 ```bash
-pytest                 # test
+pytest                 # test (ไม่เรียก API จริง)
+python -m scripts.llm_smoke   # ทดสอบ LLM + embedding ภาษาไทยกับ provider จริง (ใช้โควตาฟรีเล็กน้อย)
 ruff check . && ruff format .
 alembic revision -m "..."   # สร้าง migration ใหม่
 ```

@@ -13,6 +13,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "pgvector>=0.3.6",
     "alembic>=1.14",
+    "openai>=3.0",
 ]
 
 [dependency-groups]
@@ -40,6 +41,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*.py" = ["E501"] # raw SQL DDL

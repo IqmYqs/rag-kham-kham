@@ -24,6 +24,7 @@ class LLMConfig(BaseModel):
     vision: list[ModelRef] = Field(default_factory=list)
     embedding: EmbeddingRef | None = None
     max_output_tokens: int = 400
+    timeout_seconds: float = 20.0  # per chat request; then fall back to the next provider
     pricing: dict[str, Any] = Field(default_factory=dict)
 
 
