@@ -52,11 +52,14 @@ class FakeLLM:
         return out
 
     async def chat(self, role, messages, **kwargs):
+        from decimal import Decimal
         from types import SimpleNamespace
 
         self.chats.append(role)
         reply = '{"summary": "มุกทดสอบ", "category": "มุกคำพ้องเสียง", "tags": ["ทดสอบ", "ฮา"]}'
-        return SimpleNamespace(text=reply, model="fake-lite")
+        return SimpleNamespace(
+            text=reply, model="fake-lite", input_tokens=10, output_tokens=5, cost=Decimal(0)
+        )
 
 
 class FakeStorage:

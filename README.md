@@ -7,12 +7,14 @@ RAG API สำหรับค้นหาและแต่งมุกขำๆ
 
 ## สถานะ
 
-เฟส 1 ขั้นที่ 1–7 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration, auth, `/health`, LLM client + embedding, อัปโหลด + Storage + คิวแปลงไฟล์, MarkItDown + ลบข้อมูลส่วนบุคคล + ตรวจ/อนุมัติ .md, แบ่ง chunk + full-text (PyThaiNLP) + embedding + ติดแท็กตอน approve (รูปภาพ/PDF สแกนรองรับในเฟส 3)
+เฟส 1 ขั้นที่ 1–8 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, auth, อัปโหลด + Storage + คิวแปลงไฟล์, MarkItDown + ลบข้อมูลส่วนบุคคล + ตรวจ/อนุมัติ, chunk + full-text + embedding + แท็ก, **hybrid search + `/ask` (ส่งตรง → .md → AI) + `/random`** — ถัดไป: deploy Vercel และชุดคำถามทดสอบ (เฟส 2: streaming, cache, โควตา, บทสนทนา)
 
 | Endpoint | Auth | หมายเหตุ |
 |---|---|---|
 | `GET /api/v1/health` | — | สถานะ DB / Storage / LLM |
 | `GET /api/v1/auth/me` | user, admin | ตรวจว่า key เป็นของใคร |
+| `POST /api/v1/ask` | user, admin | ถามหามุก `{"message": "รองเท้า", "mode": "auto" \| "ai_only" \| "library_only"}` |
+| `GET /api/v1/random` | user, admin | สุ่มมุกจากคลัง (`?category=` ได้) ใช้ 0 token |
 | `POST /api/v1/files` | admin | อัปโหลด multipart หลายไฟล์ (≤ 4 MB/ไฟล์) |
 | `POST /api/v1/files/uploads` | admin | ขอ signed URL (≤ 20 MB) → `PUT` ไฟล์ไปที่ `upload_url` |
 | `POST /api/v1/files/complete` | admin | แจ้งว่าอัปโหลดเสร็จ → เข้าคิวแปลง |
@@ -70,6 +72,8 @@ docker compose up --build         # http://localhost:8000/docs
 ```bash
 pytest                 # test (ไม่เรียก API จริง)
 RKK_INTEGRATION=1 pytest tests/test_*_integration.py   # ทดสอบกับ DB จริง (ไฟล์ชื่อ __test__* แล้วลบทิ้ง, ช้าเพราะ DB อยู่ Sydney)
+python -m scripts.ingest samples/*.txt      # นำไฟล์เข้าคลังจริง + approve
+python -m scripts.ask "รองเท้า" "วันนี้เหนื่อยจัง"   # ถามคลังจริงจาก command line
 python -m scripts.llm_smoke   # ทดสอบ LLM + embedding ภาษาไทยกับ provider จริง (ใช้โควตาฟรีเล็กน้อย)
 ruff check . && ruff format .
 alembic revision -m "..."   # สร้าง migration ใหม่
