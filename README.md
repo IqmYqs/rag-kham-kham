@@ -7,12 +7,18 @@ RAG API สำหรับค้นหาและแต่งมุกขำๆ
 
 ## สถานะ
 
-เฟส 1 ขั้นที่ 1–4 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration แรก, envelope มาตรฐาน, API Key auth, `/health`, LLM client (fallback ข้าม provider) + embedding
+เฟส 1 ขั้นที่ 1–5 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration, envelope, API Key auth, `/health`, LLM client + embedding, อัปโหลดไฟล์ + Storage + คิวแปลงไฟล์ (ตอนนี้แปลงได้เฉพาะ .txt/.md — ขั้นที่ 6 เพิ่ม MarkItDown)
 
 | Endpoint | Auth | หมายเหตุ |
 |---|---|---|
 | `GET /api/v1/health` | — | สถานะ DB / Storage / LLM |
 | `GET /api/v1/auth/me` | user, admin | ตรวจว่า key เป็นของใคร |
+| `POST /api/v1/files` | admin | อัปโหลด multipart หลายไฟล์ (≤ 4 MB/ไฟล์) |
+| `POST /api/v1/files/uploads` | admin | ขอ signed URL (≤ 20 MB) → `PUT` ไฟล์ไปที่ `upload_url` |
+| `POST /api/v1/files/complete` | admin | แจ้งว่าอัปโหลดเสร็จ → เข้าคิวแปลง |
+| `GET /api/v1/files`, `GET /api/v1/files/{id}` | admin | รายการ/สถานะ (กู้งานค้างอัตโนมัติ) |
+| `DELETE /api/v1/files/{id}` | admin | ลบไฟล์ + .md + chunk + cache |
+| `GET /api/v1/internal/cron` | Bearer `CRON_SECRET` | Vercel Cron วันละครั้ง (`vercel.json`) |
 | `GET /docs` | — | Swagger UI |
 
 ## เริ่มต้นใช้งาน (ในเครื่อง)
@@ -50,12 +56,14 @@ docker compose up --build         # http://localhost:8000/docs
    - ถ้ารหัสผ่านมีอักขระพิเศษ ต้อง encode ก่อน เช่น `@` → `%40`, `#` → `%23`, `/` → `%2F`
 3. สร้างตาราง: `alembic upgrade head`
 4. สร้าง admin key ถาวร: `python -m scripts.create_api_key --owner me --role admin`
-5. ใส่ `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (ใช้ในขั้นอัปโหลดไฟล์)
+5. ใส่ `SUPABASE_URL` และ `SUPABASE_SERVICE_KEY` = **secret key** (`sb_secret_...`) จาก Project Settings → API Keys (ไม่ใช่ publishable key)
+6. สร้าง bucket และทดสอบ Storage: `python -m scripts.setup_storage`
 
 ## พัฒนา
 
 ```bash
 pytest                 # test (ไม่เรียก API จริง)
+RKK_INTEGRATION=1 pytest tests/test_files_integration.py   # ทดสอบกับ DB จริง (ใช้ไฟล์ชื่อ __test__* แล้วลบทิ้ง)
 python -m scripts.llm_smoke   # ทดสอบ LLM + embedding ภาษาไทยกับ provider จริง (ใช้โควตาฟรีเล็กน้อย)
 ruff check . && ruff format .
 alembic revision -m "..."   # สร้าง migration ใหม่

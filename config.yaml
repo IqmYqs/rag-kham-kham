@@ -40,6 +40,10 @@ quota:
   daily_tokens: 100000
   timezone: Asia/Bangkok
 
+storage:
+  bucket: kham-files
+  signed_upload_expires_seconds: 7200 # Supabase signed upload URLs last 2 hours
+
 upload:
   max_file_mb: 20
   multipart_max_mb: 4

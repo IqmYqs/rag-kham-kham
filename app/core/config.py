@@ -56,6 +56,11 @@ class QuotaConfig(BaseModel):
     timezone: str = "Asia/Bangkok"
 
 
+class StorageConfig(BaseModel):
+    bucket: str = "kham-files"
+    signed_upload_expires_seconds: int = 7200
+
+
 class UploadConfig(BaseModel):
     max_file_mb: int = 20
     multipart_max_mb: int = 4
@@ -85,6 +90,7 @@ class AppConfig(BaseModel):
     thresholds: ThresholdConfig = Field(default_factory=ThresholdConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
     quota: QuotaConfig = Field(default_factory=QuotaConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     upload: UploadConfig = Field(default_factory=UploadConfig)
     conversion: ConversionConfig = Field(default_factory=ConversionConfig)
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
