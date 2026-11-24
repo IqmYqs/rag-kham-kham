@@ -54,6 +54,12 @@ conversion:
   job_timeout_minutes: 5
   max_attempts: 3
 
+chunking: # US-C05
+  max_chars: 1200 # ~500 tokens of Thai
+  overlap_chars: 120
+  short_line_chars: 200 # a block of lines this short = one joke per line
+  embed_time_budget_seconds: 200 # per background run (free tier: 100 texts/min); rest resumes later
+
 conversation:
   history_messages: 6
 

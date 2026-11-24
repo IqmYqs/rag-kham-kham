@@ -16,6 +16,8 @@ dependencies = [
     "openai>=3.0",
     "httpx>=0.28",
     "python-multipart>=0.0.20",
+    "markitdown[pdf,docx,xlsx,pptx]>=0.1.2",
+    "pythainlp>=5.0",
 ]
 
 [dependency-groups]
@@ -47,3 +49,4 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*.py" = ["E501"] # raw SQL DDL
+"tests/fixtures_docs.py" = ["E501"] # OOXML boilerplate

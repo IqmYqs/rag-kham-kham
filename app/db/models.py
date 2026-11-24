@@ -84,6 +84,7 @@ class File(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     convert_method: Mapped[str | None] = mapped_column(Text)
+    reprocess_method: Mapped[str | None] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     tags_source: Mapped[str | None] = mapped_column(Text)

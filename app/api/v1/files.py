@@ -35,7 +35,9 @@ from app.schemas.files import (
     UploadsRequest,
 )
 from app.services import uploads as up
+from app.services.indexing import finish_indexing, index_status, pending_index_work
 from app.services.jobs import recover, run_jobs
+from app.services.llm.client import LLMClient, get_llm
 from app.services.storage import ObjectNotFound, Storage, StorageError, get_storage
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 DB = Annotated[AsyncSession, Depends(get_db)]
 StorageDep = Annotated[Storage, Depends(get_storage)]
+LLMDep = Annotated[LLMClient, Depends(get_llm)]
 UPLOAD_RESPONSES = {202: {"model": Envelope[UploadResults]}}
 
 
@@ -74,6 +77,19 @@ def _schedule(background: BackgroundTasks, storage: Storage, ids: list[uuid.UUID
     maker = get_sessionmaker()
     if ids and maker is not None:
         background.add_task(run_jobs, ids, storage=storage, maker=maker)
+
+
+async def _recover(
+    session: AsyncSession, background: BackgroundTasks, storage: Storage, llm: LLMClient
+) -> None:
+    """Restart lost conversion jobs and unfinished embeddings (US-B05 AC5)."""
+    _schedule(background, storage, await recover(session))
+    pending = await pending_index_work(session)
+    maker = get_sessionmaker()
+    if pending and maker is not None:
+        background.add_task(
+            finish_indexing, pending, maker=maker, storage=storage, llm=llm, tag=False
+        )
 
 
 async def _delete_objects(storage: Storage, paths: list[str | None]) -> None:
@@ -341,12 +357,13 @@ async def list_files(
     _: CurrentAdmin,
     session: DB,
     storage: StorageDep,
+    llm: LLMDep,
     background: BackgroundTasks,
     status: FileStatus | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> Envelope[FilePage]:
-    _schedule(background, storage, await recover(session))
+    await _recover(session, background, storage, llm)
     stmt = select(File)
     if status:
         stmt = stmt.where(File.status == status)
@@ -365,11 +382,16 @@ async def get_file(
     _: CurrentAdmin,
     session: DB,
     storage: StorageDep,
+    llm: LLMDep,
     background: BackgroundTasks,
     file_id: uuid.UUID,
 ) -> Envelope[FileOut]:
-    _schedule(background, storage, await recover(session))
-    return ok(FileOut.model_validate(await _get_file(session, file_id)))
+    await _recover(session, background, storage, llm)
+    row = await _get_file(session, file_id)
+    out = FileOut.model_validate(row)
+    if row.status == "approved":
+        out.index = await index_status(session, row.id)
+    return ok(out)
 
 
 @router.delete("/{file_id}", response_model=Envelope[DeleteResult], summary="ลบไฟล์")

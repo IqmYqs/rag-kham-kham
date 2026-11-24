@@ -73,6 +73,13 @@ class ConversionConfig(BaseModel):
     max_attempts: int = 3
 
 
+class ChunkingConfig(BaseModel):
+    max_chars: int = 1200  # ~500 tokens of Thai
+    overlap_chars: int = 120
+    short_line_chars: int = 200  # blocks of lines this short = one joke per line
+    embed_time_budget_seconds: int = 200  # per background run; leftovers resume later
+
+
 class ConversationConfig(BaseModel):
     history_messages: int = 6
 
@@ -93,6 +100,7 @@ class AppConfig(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     upload: UploadConfig = Field(default_factory=UploadConfig)
     conversion: ConversionConfig = Field(default_factory=ConversionConfig)
+    chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     conversation: ConversationConfig = Field(default_factory=ConversationConfig)
     retention_days: int = 90
     cors: CorsConfig = Field(default_factory=CorsConfig)

@@ -7,7 +7,7 @@ RAG API สำหรับค้นหาและแต่งมุกขำๆ
 
 ## สถานะ
 
-เฟส 1 ขั้นที่ 1–5 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration, envelope, API Key auth, `/health`, LLM client + embedding, อัปโหลดไฟล์ + Storage + คิวแปลงไฟล์ (ตอนนี้แปลงได้เฉพาะ .txt/.md — ขั้นที่ 6 เพิ่ม MarkItDown)
+เฟส 1 ขั้นที่ 1–7 (ตาม DESIGN.md หัวข้อ 13): โครงโปรเจกต์, schema + migration, auth, `/health`, LLM client + embedding, อัปโหลด + Storage + คิวแปลงไฟล์, MarkItDown + ลบข้อมูลส่วนบุคคล + ตรวจ/อนุมัติ .md, แบ่ง chunk + full-text (PyThaiNLP) + embedding + ติดแท็กตอน approve (รูปภาพ/PDF สแกนรองรับในเฟส 3)
 
 | Endpoint | Auth | หมายเหตุ |
 |---|---|---|
@@ -18,6 +18,10 @@ RAG API สำหรับค้นหาและแต่งมุกขำๆ
 | `POST /api/v1/files/complete` | admin | แจ้งว่าอัปโหลดเสร็จ → เข้าคิวแปลง |
 | `GET /api/v1/files`, `GET /api/v1/files/{id}` | admin | รายการ/สถานะ (กู้งานค้างอัตโนมัติ) |
 | `DELETE /api/v1/files/{id}` | admin | ลบไฟล์ + .md + chunk + cache |
+| `GET` / `PUT /api/v1/files/{id}/markdown` | admin | ดู / แก้ .md (แก้ไฟล์ที่ approved แล้ว → กลับเป็น pending_review) |
+| `POST /api/v1/files/{id}/approve`, `/reject` | admin | อนุมัติ (แบ่ง chunk + full-text ทันที, embedding/แท็กทำเบื้องหลัง ดูความคืบหน้าที่ `index` ใน `GET /files/{id}`) / ปฏิเสธ |
+| `POST /api/v1/files/{id}/reprocess` | admin | แปลงใหม่ `{"method": "default" \| "llm"}` |
+| `GET /api/v1/files/{id}/revisions` | admin | ประวัติการแก้ .md (มี diff) |
 | `GET /api/v1/internal/cron` | Bearer `CRON_SECRET` | Vercel Cron วันละครั้ง (`vercel.json`) |
 | `GET /docs` | — | Swagger UI |
 
@@ -59,11 +63,13 @@ docker compose up --build         # http://localhost:8000/docs
 5. ใส่ `SUPABASE_URL` และ `SUPABASE_SERVICE_KEY` = **secret key** (`sb_secret_...`) จาก Project Settings → API Keys (ไม่ใช่ publishable key)
 6. สร้าง bucket และทดสอบ Storage: `python -m scripts.setup_storage`
 
+> โควตา embedding ฟรีของ Gemini = 100 ข้อความ/นาที ไฟล์ใหญ่จะทยอยทำ embedding เบื้องหลัง (ค้นด้วยคำได้ทันที ค้นด้วยความหมายได้เมื่อ `index.embedded == index.chunks`)
+
 ## พัฒนา
 
 ```bash
 pytest                 # test (ไม่เรียก API จริง)
-RKK_INTEGRATION=1 pytest tests/test_files_integration.py   # ทดสอบกับ DB จริง (ใช้ไฟล์ชื่อ __test__* แล้วลบทิ้ง)
+RKK_INTEGRATION=1 pytest tests/test_*_integration.py   # ทดสอบกับ DB จริง (ไฟล์ชื่อ __test__* แล้วลบทิ้ง, ช้าเพราะ DB อยู่ Sydney)
 python -m scripts.llm_smoke   # ทดสอบ LLM + embedding ภาษาไทยกับ provider จริง (ใช้โควตาฟรีเล็กน้อย)
 ruff check . && ruff format .
 alembic revision -m "..."   # สร้าง migration ใหม่

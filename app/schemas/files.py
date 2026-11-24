@@ -39,12 +39,18 @@ class FileOut(BaseModel):
     convert_method: str | None
     category: str | None
     tags: list[str]
+    tags_source: str | None = Field(description="user / ai / mixed")
     description: str | None
     author: str | None
     summary: str | None
     created_at: datetime
     updated_at: datetime
     approved_at: datetime | None
+    index: dict[str, int] | None = Field(
+        default=None,
+        description="Approved files: {chunks, embedded} — searchable by meaning "
+        "once embedded == chunks",
+    )
 
 
 class FilePage(BaseModel):
@@ -90,3 +96,34 @@ class CompleteRequest(BaseModel):
 class DeleteResult(BaseModel):
     id: uuid.UUID
     deleted: bool = True
+
+
+class MarkdownOut(BaseModel):
+    file_id: uuid.UUID
+    status: FileStatus
+    convert_method: str | None
+    markdown: str
+    pii_removed: dict[str, int] | None = Field(
+        default=None, description="Personal data removed from an edit (PUT only)"
+    )
+
+
+class MarkdownIn(BaseModel):
+    markdown: str = Field(min_length=1, max_length=2_000_000)
+
+
+class ReprocessIn(BaseModel):
+    method: Literal["default", "llm"] = Field(
+        default="default", description="default = MarkItDown, llm = let the AI tidy the result"
+    )
+
+
+class RevisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    reason: str
+    diff: str | None
+    trigger_answer_id: uuid.UUID | None
+    created_by: uuid.UUID | None
+    created_at: datetime

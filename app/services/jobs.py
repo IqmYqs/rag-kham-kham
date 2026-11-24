@@ -1,6 +1,6 @@
 """Background conversion using the `files` table as the queue (DESIGN.md 5.2, US-B05).
 
-queued --claim--> converting --ok--> pending_review
+queued --claim--> converting --ok--> pending_review (reprocess also starts from queued)
                              --permanent error--> failed
                              --transient error / timeout--> queued (attempts < max) | failed
 
@@ -20,7 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_app_config
 from app.db.models import File, MdRevision
 from app.services.conversion.converter import ConversionError, convert
-from app.services.storage import Storage
+from app.services.conversion.llm_format import reformat_with_llm
+from app.services.llm.client import get_llm
+from app.services.revisions import make_diff
+from app.services.storage import ObjectNotFound, Storage
 from app.services.uploads import md_path
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,8 @@ class Claimed:
     raw_path: str
     mime_type: str
     attempts: int
+    reprocess_method: str | None
+    old_md_path: str | None
 
 
 async def claim(session: AsyncSession, file_id: uuid.UUID) -> Claimed | None:
@@ -47,7 +52,7 @@ async def claim(session: AsyncSession, file_id: uuid.UUID) -> Claimed | None:
                    SET status = 'converting', locked_at = now(), attempts = attempts + 1,
                        error_code = NULL, error_message = NULL, updated_at = now()
                  WHERE id = :id AND status = 'queued'
-             RETURNING id, name, raw_path, mime_type, attempts
+             RETURNING id, name, raw_path, mime_type, attempts, reprocess_method, md_path
                 """
             ),
             {"id": file_id},
@@ -69,6 +74,15 @@ async def _set_status(
     return result.rowcount == 1  # type: ignore[attr-defined]
 
 
+async def _read_old_md(storage: Storage, path: str | None) -> str | None:
+    if not path:
+        return None
+    try:
+        return (await storage.download(path)).decode("utf-8", errors="replace")
+    except ObjectNotFound:
+        return None
+
+
 async def process_file(
     file_id: uuid.UUID, *, storage: Storage, maker: async_sessionmaker[AsyncSession]
 ) -> str | None:
@@ -83,13 +97,29 @@ async def process_file(
         async with asyncio.timeout(cfg.job_timeout_minutes * 60):
             data = await storage.download(job.raw_path)
             result = convert(data, job.name, job.mime_type)
+            if job.reprocess_method == "llm":
+                result = await reformat_with_llm(result, get_llm())
+            old_md = await _read_old_md(storage, job.old_md_path)
             path = md_path(job.id)
             await storage.upload(path, result.markdown.encode(), "text/markdown; charset=utf-8")
+            if result.pii_removed:
+                logger.info("Removed personal data from %s: %s", job.id, result.pii_removed)
             async with maker() as session:
                 if await _set_status(
-                    session, job.id, "pending_review", md_path=path, convert_method=result.method
+                    session,
+                    job.id,
+                    "pending_review",
+                    md_path=path,
+                    convert_method=result.method,
+                    reprocess_method=None,
                 ):
-                    session.add(MdRevision(file_id=job.id, reason="convert"))
+                    session.add(
+                        MdRevision(
+                            file_id=job.id,
+                            reason="reprocess" if job.reprocess_method else "convert",
+                            diff=make_diff(old_md, result.markdown),
+                        )
+                    )
                 await session.commit()
         return "pending_review"
     except ConversionError as exc:

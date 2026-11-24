@@ -17,7 +17,9 @@ from app.core.config import get_settings
 from app.core.errors import AppError, ErrorCode
 from app.core.responses import Envelope, ok
 from app.db.session import get_db, get_sessionmaker
+from app.services.indexing import finish_indexing, pending_index_work
 from app.services.jobs import process_file, recover
+from app.services.llm.client import LLMClient, get_llm
 from app.services.storage import Storage, StorageError, get_storage
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ ABANDONED_UPLOAD_HOURS = 24
 
 class CronResult(BaseModel):
     processed: dict[str, str | None]
+    unembedded_chunks: dict[str, int]
     abandoned_uploads_removed: int
 
 
@@ -46,6 +49,7 @@ def require_cron_secret(authorization: Annotated[str | None, Header()] = None) -
 async def cron(
     session: Annotated[AsyncSession, Depends(get_db)],
     storage: Annotated[Storage, Depends(get_storage)],
+    llm: Annotated[LLMClient, Depends(get_llm)],
 ) -> Envelope[CronResult]:
     started = time.monotonic()
     maker = get_sessionmaker()
@@ -62,7 +66,16 @@ async def cron(
                 break
             processed[str(file_id)] = await process_file(file_id, storage=storage, maker=maker)
 
-    # 2. Remove signed-URL uploads that were never completed.
+    # 2. Finish embeddings and tags for approved files.
+    unembedded: dict[str, int] = {}
+    left = TIME_BUDGET_SECONDS - (time.monotonic() - started)
+    pending = await pending_index_work(session, limit=20, include_untagged=True)
+    if pending and left > 10:
+        unembedded = await finish_indexing(
+            pending, maker=maker, storage=storage, llm=llm, time_budget=left
+        )
+
+    # 3. Remove signed-URL uploads that were never completed.
     rows = await session.execute(
         text(
             """
@@ -83,4 +96,10 @@ async def cron(
             logger.warning("Could not delete abandoned uploads %s", paths)
 
     # (Phase 2: delete answers/conversations older than retention_days.)
-    return ok(CronResult(processed=processed, abandoned_uploads_removed=len(paths)))
+    return ok(
+        CronResult(
+            processed=processed,
+            unembedded_chunks=unembedded,
+            abandoned_uploads_removed=len(paths),
+        )
+    )
